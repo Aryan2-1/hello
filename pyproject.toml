@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "hello"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+aiosqlite = "^0.17.0"
+discord = "^1.0.1"
+giphy-client = "^1.0.0"
+aiofiles = "^0.6.0"
+aiohttp = "^3.7.4"
+flask = "^1.1.2"
+DiscordUtils = "^1.2.9"
+bs4 = "^0.0.1"
+prsaw = "^0.3.1"
+"akinator.py" = "^4.1.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
