@@ -14,8 +14,9 @@ aiohttp = "^3.7.4"
 flask = "^1.1.2"
 DiscordUtils = "^1.2.9"
 bs4 = "^0.0.1"
-prsaw = "^0.3.1"
 "akinator.py" = "^4.1.0"
+prsaw = "^0.4.0"
+"randomstuff.py" = "^1.4.3"
 
 [tool.poetry.dev-dependencies]
 

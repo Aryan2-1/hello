@@ -22,10 +22,11 @@ from discord.ext.commands import command, cooldown, BucketType
 from discord.ext.commands import (CommandOnCooldown)
 import aiosqlite
 from PIL import Image, ImageDraw, ImageFont
-from prsaw import RandomStuff
+from prsaw import RandomStuff 
 import DiscordUtils
 import bs4
 import akinator
+import requests
 
 with open('reports.json', encoding='utf-8') as f:
   try:
@@ -33,13 +34,20 @@ with open('reports.json', encoding='utf-8') as f:
   except ValueError:
     report = {}
     report['users'] = []
+  if not report:
+    report['users'] = []
 
 intents = discord.Intents.default()
 intents.members = True
-client = commands.Bot(command_prefix = '-', intents= intents)
+client = commands.Bot(command_prefix=commands.when_mentioned_or('>>>'),intents = intents)
+
 tracker = DiscordUtils.InviteTracker(client)
 
-rs = RandomStuff(async_mode = True)
+api_key = "3PCCNujbl6QM"
+rs = RandomStuff(async_mode = True, api_key = api_key, ai_language="hi")
+
+
+
 
 client.remove_command("help")
 mainshop = [{"name":"Watch","price":1000,"description":"Time"},
@@ -232,7 +240,7 @@ async def place(ctx, pos: int):
         else:
             await ctx.send("It is not your turn.")
     else:
-        await ctx.send("Please start a new game using the !tictactoe command.")
+        await ctx.send("Please start a new game using the >>>tictactoe command.")
 
 
 def checkWinner(winningConditions, mark):
@@ -257,56 +265,54 @@ def toggled(ctx):
     c = ctx.command
     check  = getattr(c, 'toggled', True)
     return check
-  
+
+@client.event
+async def on_member_join(member):
+	await sleep(60*10)
+	for channel in member.guild.channels: 
+		if channel.name.startswith("Members"):
+			await channel.edit(name=f"Members :{member.guild.member_count}")
+			break
+
 @client.event
 async def on_message(message):
   if client.user == message.author:
     return
-  
-  if message.channel.id == 830164892069265438:
-    response = await rs.get_ai_response(message)
-    await message.reply(response)
-    
-  await client.process_commands(message)
 
-@client.command(aliases=["aki"])
-async def akinator(ctx):
-    await ctx.send("Akinator is here to guess!")
-    def check(msg):
-        return msg.author == ctx.author and msg.channel == ctx.channel and msg.content.lower() in ["y", "n","p","b"]
-    try:
-        aki = ak.Akinator()
-        q = aki.start_game()
-        while aki.progression <= 80:
-            await ctx.send(q)
-            await ctx.send("Your answer:(y/n/p/b)")
-            msg = await bot.wait_for("message", check=check)
-            if msg.content.lower() == "b":
-                try:
-                    q=aki.back()
-                except ak.CantGoBackAnyFurther:
-                    await ctx.send(e)
-                    continue
-            else:
-                try:
-                    q = aki.answer(msg.content.lower())
-                except ak.InvalidAnswerError as e:
-                    await ctx.send(e)
-                    continue
-        aki.win()
-        await ctx.send(f"It's {aki.first_guess['name']} ({aki.first_guess['description']})! Was I correct?(y/n)\n{aki.first_guess['absolute_picture_path']}\n\t")
-        correct = await bot.wait_for("message", check=check)
-        if correct.content.lower() == "y":
-            await ctx.send("Yay\n")
-        else:
-            await ctx.send("Oof\n")
-    except Exception as e:
-        await ctx.send(e)
+  if message.channel.id == 845687753370370069:
+    response = await rs.get_ai_response(message.content)
+    await message.reply(response)
+
+  await client.process_commands(message)
+  
+
+@client.command()
+async def nsfw(ctx):
+  embed = discord.Embed(colour=discord.Colour.random())
+
+  async with aiohttp.ClientSession() as cs:
+    async with cs.get('https://www.reddit.com/r/nsfw/new.json?sort=hot') as r:
+      res = await r.json()
+      embed.set_image(url=res['data']['children'] [random.randint(0, 25)]['data']['url'])
+      await ctx.send(embed=embed)
+      
+  
+
+
+
+@client.command()
+async def prefix(ctx):
+  emb = discord.Embed (
+    title="**MY PREFIX**",
+    description="My Prefix Is >>>",
+    colour=discord.Colour.random(),
+    timestamp=ctx.message.created_at)
+  await ctx.send(embed=emb)
 
 @client.command()
 async def search(ctx, message):
   await ctx.send(f"https://www.google.com/search?q={message}")
-  
+
 @client.command(aliases=["bal"])
 async def balance(ctx,user: discord.Member=None):
   
@@ -805,7 +811,7 @@ async def subscribe(ctx):
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
   
-  emb.add_field(name="My Owner's YouTube Channel", value="[Click Here To Subscribe](https://youtube.com/channel/UCYWH4S5CKSN-OOoKsGwuraw)")
+  emb.add_field(name="My Owner's YouTube Channel", value="[Click Here To Subscribe](https://youtube.com/c/PocketEditionHindi)")
   emb.add_field(name="My Coder's YouTube Channel",value="[Click Here To Subscribe](https://youtube.com/c/AlAoTach)")
   
   await ctx.send(embed=emb)
@@ -888,37 +894,6 @@ async def reminder(ctx,time:int, *,msg):
 async def dal(ctx):
   await ctx.send("🚩 BAJRANG DAL, JAI BAJARANG BALI.")
 
-@client.command(name="fact")
-@cooldown(3, 60, BucketType.guild)
-async def animal_fact(self, animal: str,ctx):
-	if (animal := animal.lower()) in ("dog", "cat", "panda", "fox", "bird", "koala"):
-		fact_url = f"https://some-random-api.ml/facts/{animal}"
-		image_url = f"https://some-random-api.ml/img/{'birb' if animal == 'bird' else animal}"
-
-		async with request("GET", image_url, headers={}) as response:
-			if response.status == 200:
-					data = await response.json()
-					image_link = data["link"]
-
-			else:
-				image_link = None
-
-		async with request("GET", fact_url, headers={}) as response:
-			if response.status == 200:
-				data = await response.json()
-
-				embed = Embed(title=f"{animal.title()} fact", description=data["fact"],colour=ctx.author.colour)
-				if image_link is not None:
-					embed.set_image(url=image_link)
-				await ctx.send(embed=embed)
-
-			else:
-				await ctx.send(f"API returned a {response.status} status.")
-
-	else:
-		await ctx.send("No facts are available for that animal.")
-
-
 @client.command()
 async def nuke(ctx, amount=99999999):
   if ctx.author.guild_permissions.manage_messages:
@@ -930,7 +905,7 @@ async def nuke(ctx, amount=99999999):
       timestamp=ctx.message.created_at
       )
     
-    embe.set_image(url="https://media.tenor.com/images/c243489a85b9ab833012da3acfec815b/tenor.gif")
+    embe.set_image(url="https://c.tenor.com/XRaqIsw6SgcAAAAM/rahul-gandhi-khatam.gif")
     
     embe.set_footer(text= f"{ctx.author}")
     
@@ -1076,12 +1051,12 @@ async def botcoder(ctx):
 @client.command(aliases=["bo"]) 
 async def botowner(ctx):
   emb=discord.Embed (
-    title="My OWNER Is 👇👇👇",
+    title="**My OWNER Is 👇👇👇**",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at
     )
 
-  emb.set_image(url="https://cdn.discordapp.com/attachments/651744491606114304/792287108210360361/20201226_123544.gif")
+  emb.set_image(url="https://cdn.discordapp.com/attachments/780391951580135444/834429265440276531/avatar.jpg")
   
   emb.set_footer(text= f"{ctx.author}")
   
@@ -1106,8 +1081,7 @@ async def announcement(ctx, *, message):
 
 @client.command(aliases=["n"])
 async def nitro(ctx):
-  msg = await ctx.send(f"https://cdn.discordapp.com/attachments/820202745926516787/820261437477355540/images.png")
-  await msg.add_reaction('😜')
+  msg = await ctx.send(f"https://discord.gift/2NcrWUVvs2y8m9xhPGEkUyER")
 
 @client.command(aliases=["w"])
 async def wanted(ctx, user: discord.Member = None):
@@ -1215,15 +1189,11 @@ async def avatar(ctx, user: discord.Member = None):
   if user == None:
     user = ctx.author
     
-  asset = user.avatar_url_as(size = 128)
-  data = BytesIO(await asset.read())
-  pfp = Image.open(data)
-    
-  pfp = pfp.resize((200, 200))
-  
-  pfp.save("avatar.jpg")
-  
-  await ctx.send(file = discord.File("avatar.jpg"))
+  emb = discord.Embed(
+    title = f"{user}",
+    colour = discord.Colour.random())
+  emb.set_image(url=user.avatar_url)
+  await ctx.send(embed=emb)
 
 @client.command(aliases=["mc"])
 async def membercount(ctx):
@@ -1253,8 +1223,6 @@ async def announcement_everyone(ctx, *, message):
     
     await ctx.send(f"@everyone", embed=emb)
 
-
-
 @client.command()
 async def say(ctx, *, message):
   await ctx.message.delete()
@@ -1273,7 +1241,7 @@ async def say(ctx, *, message):
 async def covid(ctx , *, countryName = None):
   try:
     if countryName is None:
-      embed=discord.Embed(title="This command is used like this: ```-covid [country]```", colour=discord.Colour.random())
+      embed=discord.Embed(title="This command is used like this: ```>>>covid [country]```", colour=discord.Colour.random())
       
       await ctx.send(embed=embed)
 
@@ -1310,11 +1278,10 @@ async def covid(ctx , *, countryName = None):
 
       embed2.set_thumbnail(url="https://cdn.discordapp.com/attachments/564520348821749766/701422183217365052/2Q.png")
       await ctx.send(embed=embed2)
-
   except:
-    embed3 = discord.Embed(title="Invalid Country Name Or API Error! Try Again..!", colour=discord.Colour.random(), timestamp=ctx.message.created_at)
-    embed3.set_author(name="Error!")
-    await ctx.send(embed=embed3)
+        embed3 = discord.Embed(title="Invalid Country Name Or API Error! Try Again..!", colour=discord.Colour.random(), timestamp=ctx.message.created_at)
+        embed3.set_author(name="Error!")
+        await ctx.send(embed=embed3)
 
 @client.command(aliases=["ct","cc","create_channel"])
 async def create_text(ctx, channelName):
@@ -1421,7 +1388,6 @@ async def createemoji(ctx, url: str, *, name):
 					await ctx.send('File size is too big!')
 
 
-
 @client.command(aliases=["de","De","dE"])
 async def deleteemoji(ctx, emoji: discord.Emoji):
 	guild = ctx.guild
@@ -1483,15 +1449,69 @@ async def unmute(ctx, member: discord.Member):
 async def help(ctx):
   emb=discord.Embed (
     title="Commands",
-    description="Help Commands, Use -help [command] for more info about a command.",
+    description="Help Commands, Use >>>help [command] for more info about a command.",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
     
-  emb.add_field(name="Moderation", value="Kick, Ban, Unban, Mute, Unmute, Purge, Nuke, create_text, create_voice, createemoji, delete_text, delete_voice, createemoji, deleteemoji, configure_ticket, announcement, announcement_everyone, poll")
-  emb.add_field(name="Fun", value="avatar, covid, membercount, nitro, say, wanted, ping, uptime, DM, search, coinflip, Kiss, Kill, Hug")
-  emb.add_field(name="Calculator", value="mathadd, mathsub, mathmult, mathdiv, mathrando, mathsqrt")
-  emb.add_field(name="Bot Information", value="botcoder, botowner, invite")
-  emb.add_field(name="Music", value="clip, clips, loop, lyrics, move, np, pause, play, playlist, pruning, queue, remove, resume, skip, skipto, stop, volume")
+  emb.add_field(name="**Moderation**", value="Kick, Ban, Unban, Mute, Unmute, Purge, Nuke, create_text, create_voice, createemoji, delete_text, delete_voice, createemoji, deleteemoji, configure_ticket, announcement, announcement_everyone, poll, roll, remove_role, create_role, delete_role, toggle, lock, unlock, warn, warnings, giveaway, reroll")
+  emb.add_field(name="**Fun**", value="avatar, covid, membercount, nitro, say, wanted, ping, uptime, DM, search, coinflip, Kiss, Kill, Hug, userinfo, serverinfo, date, afk")
+  emb.add_field(name="**Calculator**", value="mathadd, mathsub, mathmult, mathdiv, mathrando, mathsqrt")
+  emb.add_field(name="**Bot Information**", value="botcoder, botowner, prefix, subscribe")
+  emb.add_field(name="**Music**", value="clip, clips, loop, lyrics, move, np, pause, play, playlist, pruning, queue, remove, resume, skip, skipto, stop, volume")
+  emb.add_field(name="**ECONOMY**", value="balance, beg, withdraw, deposit, rob, shop, buy, sell")
+  emb.add_field(name="**GAMES**", value = "TicTacToe")
+  await ctx.send(embed=emb)
+
+
+
+@help.command()
+async def toggle(ctx):
+  emb=discord.Embed (
+    title="toggle",
+    description="toggle on or off the given name command",
+    colour=discord.Colour.random(),
+    timestamp=ctx.message.created_at)
+  emb.add_field(name="**Syntax**", value=">>>toggle commandName")
+  await ctx.send(embed=emb)
+
+@help.command()
+async def role(ctx):
+  emb=discord.Embed (
+    title="role",
+    description="gives mentioned role to the mentioned user",
+    colour=discord.Colour.random(),
+    timestamp=ctx.message.created_at)
+  emb.add_field(name="**Syntax**", value=">>>role [roleID/role Mention] [userID/user Mention]")
+  await ctx.send(embed=emb)
+
+@help.command()
+async def remove_role(ctx):
+  emb=discord.Embed (
+    title="remove_role",
+    description="removes mentioned role to the mentioned user",
+    colour=discord.Colour.random(),
+    timestamp=ctx.message.created_at)
+  emb.add_field(name="**Syntax**", value=">>>role [roleID/role Mention] [userID/user Mention]")
+  await ctx.send(embed=emb)
+
+@help.command()
+async def create_role(ctx):
+  emb=discord.Embed (
+    title="create_role",
+    description="creates a role of given name",
+    colour=discord.Colour.random(),
+    timestamp=ctx.message.created_at)
+  emb.add_field(name="**Syntax**", value=">>>create_role roleName")
+  await ctx.send(embed=emb)
+  
+@help.command()
+async def delete_role(ctx):
+  emb=discord.Embed (
+    title="delete_role",
+    description="deletes the mentioned role",
+    colour=discord.Colour.random(),
+    timestamp=ctx.message.created_at)
+  emb.add_field(name="**Syntax**", value=">>>delete_role [roleId/Role mention]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1501,7 +1521,7 @@ async def kick(ctx):
     description="Kicks A User From The Server",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-kick [userID/user Mention]")
+  emb.add_field(name="**Syntax**", value=">>>kick [userID/user Mention]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1511,7 +1531,7 @@ async def ban(ctx):
     description="Bans A User From The Server",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-ban [userID/user Mention]")
+  emb.add_field(name="**Syntax**", value=">>>ban [userID/user Mention]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1521,7 +1541,7 @@ async def unban(ctx):
     description="Unbans The Banned User From The Server",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-unban [userID/username]")
+  emb.add_field(name="**Syntax**", value=">>>unban [userID/username]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1531,7 +1551,7 @@ async def mute(ctx):
     description="Mutes A User From The Server",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-mute [userID/user Mention]")
+  emb.add_field(name="**Syntax**", value=">>>mute [userID/user Mention]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1541,7 +1561,7 @@ async def unmute(ctx):
     description="Unmutes The Muted User From The Server",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-unmute [userID]")
+  emb.add_field(name="**Syntax**", value=">>>unmute [userID]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1551,7 +1571,7 @@ async def purge(ctx):
     description="Deletes The Number Of Messages Which Were Given In Command",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-purge [Number Of Messages You Want To Delete]")
+  emb.add_field(name="**Syntax**", value=">>>purge [Number Of Messages You Want To Delete]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1561,7 +1581,7 @@ async def nuke(ctx):
     description="Deletes All Messages In A Channel",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-nuke")
+  emb.add_field(name="**Syntax**", value=">>>nuke")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1571,7 +1591,7 @@ async def create_text(ctx):
     description="Creates Text Channel",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-create_text [name]")
+  emb.add_field(name="**Syntax**", value=">>>create_text [name]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1581,7 +1601,7 @@ async def delete_text(ctx):
     description="Deletes The Text Channel",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-delete_text [channelID/channelMention/channelName]")
+  emb.add_field(name="**Syntax**", value=">>>delete_text [channelID/channelMention/channelName]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1591,7 +1611,7 @@ async def create_voice(ctx):
     description="Creates Voice Channel",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-create_voice [name]")
+  emb.add_field(name="**Syntax**", value=">>>create_voice [name]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1601,7 +1621,7 @@ async def delete_voice(ctx):
     description="Deletes The Voice Channel",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-delete_voice [channelName/channelID]")
+  emb.add_field(name="**Syntax**", value=">>>delete_voice [channelName/channelID]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1611,7 +1631,7 @@ async def deleteemoji(ctx):
     description="deletes The Emoji From Server",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-deleteemoji [name]")
+  emb.add_field(name="**Syntax**", value=">>>deleteemoji [name]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1621,7 +1641,7 @@ async def createemoji(ctx):
     description="Creates The Emoji",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-createemoji [emoji_link]")
+  emb.add_field(name="**Syntax**", value=">>>createemoji [emoji_link]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1631,7 +1651,7 @@ async def announcement(ctx):
     description="Announces Your message In Current Channel",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-announcement [msg]")
+  emb.add_field(name="**Syntax**", value=">>>announcement [msg]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1641,7 +1661,7 @@ async def announcement_everyone(ctx):
     description="Announces Your Msg With @everyone ping",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-announcement_everyone [msg]")
+  emb.add_field(name="**Syntax**", value=">>>announcement_everyone [msg]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1651,7 +1671,7 @@ async def configure_ticket(ctx):
     description="configures ticket system in a msg",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-configure_ticket [msgID] [category ID] msgID will be id of that msg from where all can react and ticket will be opened and categoryID will be the id of that category where all tickets will be opened")
+  emb.add_field(name="**Syntax**", value=">>>configure_ticket [msgID] [category ID] msgID will be id of that msg from where all can react and ticket will be opened and categoryID will be the id of that category where all tickets will be opened")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1661,7 +1681,7 @@ async def poll(ctx):
     description="Makes A Poll With Your Question",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-poll [Question]")
+  emb.add_field(name="**Syntax**", value=">>>poll [Question]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1671,7 +1691,7 @@ async def avatar(ctx):
     description="shows a user's pfp",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-avatar [user mention]")
+  emb.add_field(name="**Syntax**", value=">>>avatar [user mention]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1681,7 +1701,7 @@ async def covid(ctx):
     description="Shows Covid Stats Of A Country",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-covid [country]")
+  emb.add_field(name="**Syntax**", value=">>>covid [country]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1691,7 +1711,7 @@ async def nitro(ctx):
     description="Shows A Nitro Gift Image",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-nitro")
+  emb.add_field(name="**Syntax**", value=">>>nitro")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1701,7 +1721,7 @@ async def membercount(ctx):
     description="Shows How Many Members Are There In The Server",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-membercount")
+  emb.add_field(name="**Syntax**", value=">>>membercount")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1711,7 +1731,7 @@ async def say(ctx):
     description="Bot Says Your Msg",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-say [msg]")
+  emb.add_field(name="**Syntax**", value=">>>say [msg]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1721,7 +1741,7 @@ async def wanted(ctx):
     description="makes mentioned user's wanted poster",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-wanted [userMention]")
+  emb.add_field(name="**Syntax**", value=">>>wanted [userMention]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1731,7 +1751,7 @@ async def ping(ctx):
     description="Shows The Latency Of The Bot",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-ping")
+  emb.add_field(name="**Syntax**", value=">>>ping")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1741,7 +1761,7 @@ async def DM(ctx):
     description="DMs Mentioned User with your message",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-DM [usermention/userID] [msg]")
+  emb.add_field(name="**Syntax**", value=">>>DM [usermention/userID] [msg]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1751,7 +1771,7 @@ async def uptime(ctx):
     description="Shows The Since The Bot Is Online",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-uptime")
+  emb.add_field(name="**Syntax**", value=">>>uptime")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1761,7 +1781,7 @@ async def invite(ctx):
     description="Shows The Invite Link Of The Bot",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-invite")
+  emb.add_field(name="**Syntax**", value=">>>invite")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1771,7 +1791,7 @@ async def botcoder(ctx):
     description="Tells who is the bot's coder",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-botcoder")
+  emb.add_field(name="**Syntax**", value=">>>botcoder")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1781,7 +1801,7 @@ async def botowner(ctx):
     description="Shows Who Is The Bot's Owner",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-botowner")
+  emb.add_field(name="**Syntax**", value=">>>botowner")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1791,7 +1811,7 @@ async def mathadd(ctx):
     description="Adds x and y",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-mathadd x y")
+  emb.add_field(name="**Syntax**", value=">>>mathadd x y")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1801,7 +1821,7 @@ async def mathsub(ctx):
     description="Substracts x and y",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-mathsub x y")
+  emb.add_field(name="**Syntax**", value=">>>mathsub x y")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1811,7 +1831,7 @@ async def mathmult(ctx):
     description="multiplies x and y",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-mathmult x y")
+  emb.add_field(name="**Syntax**", value=">>>mathmult x y")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1821,7 +1841,7 @@ async def mathdiv(ctx):
     description="divides x and y",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntaxrr**", value="-mathdiv x y")
+  emb.add_field(name="**Syntaxrr**", value=">>>mathdiv x y")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1831,7 +1851,7 @@ async def mathrando(ctx):
     description="shows a random number between x and y",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-mathrando x y")
+  emb.add_field(name="**Syntax**", value=">>>mathrando x y")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1841,7 +1861,7 @@ async def mathsqrt(ctx):
     description="Shows The Square Root Of x",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-mathsqrt x")
+  emb.add_field(name="**Syntax**", value=">>>mathsqrt x")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1851,7 +1871,7 @@ async def clip(ctx):
     description="plays a clip sound",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-clip [name]")
+  emb.add_field(name="**Syntax**", value=">>>clip [name]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1861,7 +1881,7 @@ async def clips(ctx):
     description="Shows List Of All Clips",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-clips")
+  emb.add_field(name="**Syntax**", value=">>>clips")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1871,7 +1891,7 @@ async def loop(ctx):
     description="Toggle Music Loop",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-loop")
+  emb.add_field(name="**Syntax**", value=">>>loop")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1881,7 +1901,7 @@ async def lyrics(ctx):
     description="get lyrics of currently playing song",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-lyrics")
+  emb.add_field(name="**Syntax**", value=">>>lyrics")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1891,7 +1911,7 @@ async def move(ctx):
     description="move songs in the queue",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-move [queueNumber]")
+  emb.add_field(name="**Syntax**", value=">>>move [queueNumber]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1901,7 +1921,7 @@ async def np(ctx):
     description="Shows Now Playing Song",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-np")
+  emb.add_field(name="**Syntax**", value=">>>np")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1911,7 +1931,7 @@ async def pause(ctx):
     description="Pause The Song",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-pause")
+  emb.add_field(name="**Syntax**", value=">>>pause")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1921,7 +1941,7 @@ async def play(ctx):
     description="plays the song from youtube",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-play [songLink/songName]")
+  emb.add_field(name="**Syntax**", value=">>>play [songLink/songName]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1931,7 +1951,7 @@ async def playlist(ctx):
     description="plays a playlist",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-playlist [link/name]")
+  emb.add_field(name="**Syntax**", value=">>>playlist [link/name]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1941,7 +1961,7 @@ async def pruning(ctx):
     description="Toggle pruning",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-pruning")
+  emb.add_field(name="**Syntax**", value=">>>pruning")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1951,7 +1971,7 @@ async def queue(ctx):
     description="shows the song queue",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-queue")
+  emb.add_field(name="**Syntax**", value=">>>queue")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1961,7 +1981,7 @@ async def remove(ctx):
     description="remove song from the queue",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-remove [name]")
+  emb.add_field(name="**Syntax**", value=">>>remove [name]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1971,7 +1991,7 @@ async def resume(ctx):
     description="resume song playing",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-resume")
+  emb.add_field(name="**Syntax**", value=">>>resume")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1981,7 +2001,7 @@ async def skip(ctx):
     description="skips the song",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-skip")
+  emb.add_field(name="**Syntax**", value=">>>skip")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -1991,7 +2011,7 @@ async def skipto(ctx):
     description="skip to the selected queue number",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-skipto [queueNumber]")
+  emb.add_field(name="**Syntax**", value=">>>skipto [queueNumber]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -2001,7 +2021,7 @@ async def stop(ctx):
     description="Stops The Music And left the vc",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-stop")
+  emb.add_field(name="**Syntax**", value=">>>stop")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -2011,7 +2031,7 @@ async def volume(ctx):
     description="Increase And Decrease Volume Upto 100",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-volume [number]")
+  emb.add_field(name="**Syntax**", value=">>>volume [number]")
   await ctx.send(embed=emb)
 
 @help.command()
@@ -2021,7 +2041,7 @@ async def coinflip(ctx):
     description="Flips A Coin And Shows It's Heads Or Tails.",
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
-  emb.add_field(name="**Syntax**", value="-coinflip")
+  emb.add_field(name="**Syntax**", value=">>>coinflip")
   await ctx.send(embed=emb)
 
 @client.command()
@@ -2200,7 +2220,7 @@ async def reroll(ctx, channel : discord.TextChannel, id_ : int):
     users = await new_msg.reactions[0].users().flatten()
     users.pop(users.index(client.user))
 
-    winner = random.choice(users)
+    winner = user
 
     await channel.send(f"Congratulations! The new winner is {winner.mention}.!")    
 
@@ -2213,7 +2233,7 @@ async def on_command_error(ctx, error):
 
 @client.command(pass_context = True)
 @commands.has_permissions(manage_roles=True, manage_channels=True)
-async def warn(ctx,user:discord.User,*reason:str):
+async def warn(ctx,user:discord.User, *,reason:str):
   if not reason:
     await client.say("Please provide a reason")
     return
@@ -2236,26 +2256,22 @@ async def warn(ctx,user:discord.User,*reason:str):
     colour=discord.Colour.random(),
     timestamp=ctx.message.created_at)
     
+  await user.send(embed=emb)
   await ctx.send(embed=emb)
 
 @warn.error
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandOnCooldown):
-        em = discord.Embed(title="",description="You Do Not Have Permissions To Perform This Command", colour=discord.Colour.random())
-        await ctx.send(embed=em)
+async def warn_error(error, ctx):
+  if isinstance(error, MissingPermissions):
+      text = "Sorry {}, you do not have permissions to do that!".format(ctx.message.author)
+      await client.send_message(ctx.message.channel, text)   
 
 
 @client.command(pass_context = True)
 async def warnings(ctx,user:discord.User):
   for current_user in report['users']:
     if user.name == current_user['name']:
-     emb=discord.Embed (
-       title=f"Warnings Of {user.name}",
-       description=f"{user.name} has been reported {len(current_user['reasons'])} times : {','.join(current_user['reasons'])}",
-       colour=discord.Colour.random(),
-       timestamp=ctx.message.created_at)
-  
-  await ctx.send(embed=emb)
+      await ctx.send(f"{user.name} has been reported {len(current_user['reasons'])} times : {','.join(current_user['reasons'])}")
+
 
 @client.command(aliases=["lockdown"])
 @commands.has_permissions(manage_channels = True)
@@ -2286,4 +2302,4 @@ if __name__ == '__main__':
 
 
 keep_alive()
-client.run("")
+client.run("ODM0NDA1MzI4NjI3MDQwMjY2.YIAahA.NapOXsHe81w6XV0dRF3EbLJtOwA")
